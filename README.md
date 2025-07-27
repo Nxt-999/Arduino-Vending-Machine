@@ -4,6 +4,7 @@ Developed by Nxt-999
 
 
 > Features
+
 🛒 2 products available
 – selectable via 3x4 matrix keypad
 – confirmed with #, reset with *
