@@ -1,24 +1,17 @@
 /*
-  Vending-machine v1,0
-  || by @Niklas, @Silvio, @Jan & @Andreas
+  Arduino Vending Machine v1.0
+  Developed by Nxt-999 
 
-  ||@version 1.0 (working)
+  == Features ==
+  - 2 products selectable via 3x4 keypad (# = confirm, * = reset)
+  - Coin detection with IR sensor (no dispensing without payment)
+  - 2 gear motors to control individual product slots
+  - Servo-controlled flap for theft protection
+  - LCD display for user guidance (supports €, ä, ü, ...)
+  - Optional light sensor for product verification (currently disabled)
+  - Fully locked process logic (no double input or bypassing)
 
-  ||@functions:
-
-  || 2 products which you can buy
-  || ==> choosable with keypad
-
-  || Money detection, product detection,...
-  || ==> not able to get a product without paying before
-
-  || LCD for userfriendly experience
-  || ==> many different display options
-  || ==> speacial characters
-
-  || Secured dispensing flap
-  || ==> only opens when paid + product motor turned
-  ||     ==>  theftprotection
+  Hardware: Arduino Mega, IR sensor, 2 motors, 1 servo, 3x4 keypad, I2C LCD, [optional] light sensor
 
 */
 //--------------------------------Libaries--------------------------------
