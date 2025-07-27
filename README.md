@@ -2,7 +2,7 @@
 Vending-machine v1.0 (working)
 Developed by Nxt-999
 
-The Serial-and LCD-messages are in German, so you might need to translate it for your purpose.
+The serial-and LCD-messages are in German, so you might need to translate it for your purpose, as well as you might need to change special character placement.
 I translated the comments for you, so it's easier to undertsand what the code's doing.
 
 > Features
