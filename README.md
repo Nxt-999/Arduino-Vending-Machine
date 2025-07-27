@@ -4,27 +4,21 @@ Developed by Nxt-999
 
 
 > Features
-
 > 🛒 2 products available
 > – selectable via 3x4 matrix keypad
 > – confirmed with #, reset with *
-
 > ⚙️ 2 gear motors
 > – one for each product slot (e.g. product 22 and 58)
 > – configurable duration and direction
-
 > 💰 Coin detection
 > – uses an infrared sensor to detect payment
 > – product dispensing only allowed after valid payment
-
 > 💡 (Optional) Product detection via light sensor
 > – recognizes if a product was successfully dispensed
 > – currently disabled in code, can be enabled when needed
-
 > 🔐 Secured output flap
 > – servo opens flap only after payment and motor rotation
 > – anti-theft protection included
-
 > 📟 User-friendly LCD interface
 > – displays instructions, product numbers, prices, and confirmation messages
 > – supports special characters like €, ä, ü for native messages
