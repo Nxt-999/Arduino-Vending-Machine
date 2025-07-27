@@ -15,12 +15,12 @@
 
 */
 //--------------------------------Libaries--------------------------------
-#include <LiquidCrystal_I2C.h>
-#include <Wire.h>
-#include <Servo.h>
-#include <Keypad.h>
+#include <LiquidCrystal_I2C.h>  // LCD display via I2C
+#include <Wire.h>               // I2C communication
+#include <Servo.h>              // Servo motor control
+#include <Keypad.h>             // Keypad input handling
 //-------------------------------Euro-Zeichen-€---------------------------
-byte euroChar[8] = {  //Erstellt bzw. definiert welche Pixel für "€" leuchten müssen
+byte euroChar[8] = {  // Defines pixels for Euro sign character
   B01110,
   B10000,
   B11110,
@@ -31,7 +31,7 @@ byte euroChar[8] = {  //Erstellt bzw. definiert welche Pixel für "€" leuchten
   B00000
 };
 //-----------------------------Ü-zeichen---------------------------------
-byte uUmlaut[8] = {  //Erstellt bzw. definiert welche Pixel für "ü" leuchten müssen
+byte uUmlaut[8] = {  // Defines pixels for 'ü' character
   B00101,
   B00000,
   B10001,
@@ -42,7 +42,7 @@ byte uUmlaut[8] = {  //Erstellt bzw. definiert welche Pixel für "ü" leuchten m
   B00000
 };
 //----------------------------ä-Zeichen-----------------------------------
-byte aUmlaut[8] = {  //Erstellt bzw. definiert welche Pixel für "ä" leuchten müssen
+byte aUmlaut[8] = {  // Defines pixels for 'ä' character
   B00101,
   B00000,
   B01110,
@@ -53,331 +53,327 @@ byte aUmlaut[8] = {  //Erstellt bzw. definiert welche Pixel für "ä" leuchten m
   B00000
 };
 //-------------------------------LCD+Servo---------------------------------
-LiquidCrystal_I2C Lcd(0x27, 16, 2);  //LCD Adresse ansprechen und Feldgröße definieren, damit LCD Befehle funktionieren
-Servo myServo;                       //Zugriff auf Servo Libary, damit Befehle wie "myServo.write(90)" funktionieren
+LiquidCrystal_I2C Lcd(0x27, 16, 2);  // Initialize LCD at I2C address 0x27, 16x2 chars
+Servo myServo;                       // Create servo object for flap control
 //------------------------Licht-Sensor-------------------------------
-int lightSensor = A0;  // HC-SR501 Ausgang an Pin 2
-int lightValue = -1;   //lightValue ist der Wert des Lichtsensors, er wird auf "-1" gesetzt, das der Wert außerhalb seiner Verwendung wie "" ist (wie bei string x="")
+int lightSensor = A0;  // Light sensor analog pin
+int lightValue = -1;   // Stores light sensor reading, -1 = invalid/no reading
 
-//530 wenn leer
-//640 wenn ware
+// Typical values:
+// 530 = empty
+// 640 = product present
 
 //-----------------------Infrarot-Sensor-----------------------------------
-const int irPin = 18;  // interrupts: 2, 3, >>>18<<<, 19, 20, and 21
-//-----------------------BOOL-Varbiablen-----------------------------------
-volatile bool irDetected = false;  //irDetected wird auf false gesetzt // volatile=global ==> gilt für alle voids
-bool servoOpen = false;            // kontrolliert ob der Servo schon geöffnet wurde (für Ausgabeklappe)
-bool numberTyped = false;          // kontrolliert ob schon eine zahl eingegeben wurde
-bool motorTurned = false;          // kontrolliert ob sich der Motor schon gedreht hat, damit der Ultraschall nur misst, nachdem das Produkt ausgegeben wurde
-bool progressRunning = false;      // kontrolliert ob der schon eine Zahl eingegeben und bestätigt wurde, sodass danach bis zum Ende des Prozesses(Ausgabe) keine neuen zahlen eingegeben werden können
-bool GeldAbfrageAngezeigt = false; 
-bool angezeigt = false;
-volatile bool interruptDone = false;  //Temporär, um zu testen ob interrupt ausgelöst wurde (If schleife mit Serial print)
+const int irPin = 18;  // IR sensor digital pin for coin detection (interrupt capable)
+//-----------------------BOOL-Variables-----------------------------------
+volatile bool irDetected = false;  // Flag: coin detected by IR sensor (interrupt)
+bool servoOpen = false;            // Flag: servo flap opened
+bool numberTyped = false;          // Flag: product number entered
+bool motorTurned = false;          // Flag: motor has turned (product dispensed)
+bool progressRunning = false;      // Flag: dispensing process ongoing
+bool GeldAbfrageAngezeigt = false; // Flag: money insert prompt shown
+bool angezeigt = false;            // Flag: something displayed on LCD
+volatile bool interruptDone = false;  // Flag: interrupt routine finished (for debug)
 //----------------------------MOTOR----------------------------------------
-const int motorP1 = 9;      //motorP1+motorP2= Motor1
-const int motorP2 = 10;     //
-const int motorP3 = 11;     //motorP3+motorP4= Motor 2
-const int motorP4 = 12;     //
-const int turnTime = 1000;  // Bestimmt wie lange sich der Motor drehen soll
+const int motorP1 = 9;      // Motor 1 control pin 1
+const int motorP2 = 10;     // Motor 1 control pin 2
+const int motorP3 = 11;     // Motor 2 control pin 1
+const int motorP4 = 12;     // Motor 2 control pin 2
+const int turnTime = 1000;  // Motor runtime in milliseconds for dispensing
 //----------------------------KEYPAD---------------------------------------
-const byte ROWS = 4;  // vier Reihen
-const byte COLS = 3;  // drei Spalten
-// define the symbols on the buttons of the keypad
+const byte ROWS = 4;  // Number of keypad rows
+const byte COLS = 3;  // Number of keypad columns
+// Define keypad button symbols
 char hexaKeys[ROWS][COLS] = {
   { '*', '0', '#' },
   { '7', '8', '9' },
   { '4', '5', '6' },
   { '1', '2', '3' },
 };
-byte rowPins[ROWS] = { 4, 2, 14, 3 };  // verbinde mit den Zeilen-Pins des Keypads
-byte colPins[COLS] = { 7, 6, 5 };      // verbinde mit den Spalten-Pins des Keypads
-// initialisiere eine Instanz der Klasse Keypad
+byte rowPins[ROWS] = { 4, 2, 14, 3 };  // Connect keypad rows
+byte colPins[COLS] = { 7, 6, 5 };      // Connect keypad columns
+// Create keypad instance
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
-String input = "";  // String, um die gedrückten Tasten zu speichern
+String input = "";  // Stores user keypad input
 
 //----------------------VOID-SETUP----------------------------------------
 void setup() {
-  attachInterrupt(digitalPinToInterrupt(18), detectIR, RISING);  //Interrupt für Pin 18(IR-Sensor)erstellen. Interrupt wird ausgelöst wenn Pin von "LOW" auf "HIGH" geht (RISING)
-  //detectIR definiert den "Interrupt Loop" ==> "void detectIR() {...}"
+  attachInterrupt(digitalPinToInterrupt(18), detectIR, RISING);  // Interrupt on IR sensor pin rising edge
+  // Function detectIR called when interrupt triggered
+
   //---------------------------LCD+Serial-Monitor-------------------------
-  Serial.begin(9600);   //Serieller Monitor wird eingerichtet
-  Lcd.init();           //Lcd wird initialisiert
-  Lcd.backlight();      //Lcd-Backlight wird angeschlaten
-  showWelcomeScreen();  //Geht zu void showWelcomeScreen() {}, vermeidet Wiederholungen ==> mehr Performance
+  Serial.begin(9600);   // Start serial communication for debugging
+  Lcd.init();           // Initialize LCD
+  Lcd.backlight();      // Turn on LCD backlight
+  showWelcomeScreen();  // Display welcome message
+
   //-------------------------MOTOR----------------------------------------
-  pinMode(motorP1, OUTPUT);
+  pinMode(motorP1, OUTPUT);  // Set motor pins as outputs
   pinMode(motorP2, OUTPUT);
   pinMode(motorP3, OUTPUT);
   pinMode(motorP4, OUTPUT);
 
-  digitalWrite(motorP1, LOW);
+  digitalWrite(motorP1, LOW);  // Initialize motors off
   digitalWrite(motorP2, LOW);
   digitalWrite(motorP3, LOW);
   digitalWrite(motorP4, LOW);
 
   //--------------------------IR------------------------------------------
-  pinMode(irPin, INPUT);
+  pinMode(irPin, INPUT);  // Set IR sensor pin as input
 
   //---------------------------Servo---------------------------------------
-  myServo.attach(22);  //Servo PIN
-  myServo.write(0);    // Klappe zu (Servo Position=0)
+  myServo.attach(22);  // Attach servo to pin 22
+  myServo.write(0);    // Close flap initially
 }
 
 //----------------------------Welcome-Screen-------------------------------
-void showWelcomeScreen() {  //Einfacher zu benutzen, da nur showWelcomeScreen(); geschrieben werden muss, um die folgenden Texte anzuzeigen
+void showWelcomeScreen() {  // Display prompt to select product
   Lcd.clear();
-  Lcd.createChar(2, aUmlaut);  // Speichert das Zeichen "ä" als benutzerdefiniertes Zeichen am Speicherplatz "2"
+  Lcd.createChar(2, aUmlaut);  // Load custom 'ä' character in slot 2
   Lcd.setCursor(1, 0);
-  Lcd.print("Bitte Produkt");
+  Lcd.print("Bitte Produkt");   // "Please product"
   Lcd.setCursor(5, 1);
   Lcd.print("w");
-  Lcd.write(2);  //Zeigt "ä" an
-  Lcd.print("hlen");
+  Lcd.write(2);                 // Print 'ä'
+  Lcd.print("hlen");            // Completes "waehlen" (select)
 }
 
 //----------------------------Danke-Screen---------------------------------
-void showDankeScreen() {  //Zeigt immer LCD-Danke-Screen wenn man showDankeScreen(); schreibt ==> vereinfach/verkürzt Programm + mehr Übersicht
+void showDankeScreen() {  // Display thank you message
   Lcd.clear();
-  Lcd.createChar(1, uUmlaut);  // Speichert das Zeichen "ü" als benutzerdefiniertes Zeichen am Speicherplatz "1"
+  Lcd.createChar(1, uUmlaut);  // Load custom 'ü' character in slot 1
   Lcd.setCursor(3, 0);
   Lcd.print("Danke f");
-  Lcd.write(1);  // zeigt "ü" an
+  Lcd.write(1);                // Print 'ü'
   Lcd.print("r");
   Lcd.setCursor(2, 1);
-  Lcd.print("den Einkauf");
+  Lcd.print("den Einkauf");   // "Thanks for the purchase"
 }
 
 //---------------------Geld-einwerfen-Screen-------------------------------
-void showGeldEinwerfenScreen() {  //Zeigt immer LCD-Bitte Geld Einwerfen Screen wenn man showGeldEinwerfenScreen(); schreibt ==> vereinfach/verkürzt Programm + mehr Übersicht
+void showGeldEinwerfenScreen() {  // Prompt to insert 2€
   Lcd.clear();
-
-  Lcd.createChar(0, euroChar);  // Speichert das Zeichen "€" als benutzerdefiniertes Zeichen am Speicherplatz "0"
+  Lcd.createChar(0, euroChar);  // Load custom '€' character in slot 0
   Lcd.setCursor(4, 0);
   Lcd.print("Bitte ");
   Lcd.print("2");
-  Lcd.write(byte(0));  //Zeigt "€ "an
+  Lcd.write(byte(0));           // Print '€' sign
 
   Lcd.setCursor(3, 1);
-  Lcd.print("einwerfen");
+  Lcd.print("einwerfen");       // "please insert"
 }
-void ProduktEntnehmenScreen() {
+void ProduktEntnehmenScreen() {  // Prompt to take product
   Lcd.clear();
   Lcd.setCursor(1, 0);
   Lcd.print("Bitte ");
   Lcd.print("Produkt");
   Lcd.setCursor(3, 1);
-  Lcd.print("entnehmen");
+  Lcd.print("entnehmen");       // "please take"
 }
 //----------------------------VOID-DETECT-IR--------------------------------
-void detectIR() {     //Für Interrupt/Ir Messung mit Performance Verbesserung
-  irDetected = true;  //irDetected=true; bedeutet Münze erkannt | Diese Flag gilt auch in loop()
-  interruptDone = true;
+void detectIR() {     // Interrupt routine for IR sensor
+  irDetected = true;  // Mark coin detected
+  interruptDone = true;  // For debug print in loop
 }
 
 //------------------------VOID-Ultraschallmessung---------------------------
 void measureLight() {
-  lightValue = analogRead(lightSensor);
-  Serial.println(lightValue);
+  lightValue = analogRead(lightSensor);  // Read light sensor value
+  Serial.println(lightValue);             // Print for debug
 }
 
 //------------------------VOID-LOOP-----------------------------------------
 void loop() {
   if (!irDetected && !GeldAbfrageAngezeigt) {
-    showGeldEinwerfenScreen();
+    showGeldEinwerfenScreen();      // Prompt to insert money if none detected yet
     GeldAbfrageAngezeigt = true;
-
   }
-  if (!progressRunning && irDetected) {  //Wenn der Prozess noch nicht läuft(der Motor sich noch nicht gedreht hat)
+  if (!progressRunning && irDetected) {  // If money inserted and no active process
     if (!angezeigt) {
-      showWelcomeScreen();
+      showWelcomeScreen();          // Show product selection prompt
       angezeigt = true;
     }
-    char customKey1 = customKeypad.getKey();  //"customKeypad.getKey" stammt aus der !Keypad.h"-Libary und erkennt die Eingabe, Eingabe wird = "custom Key1" gesetzt (Zwischenspeicher)
+    char customKey1 = customKeypad.getKey();  // Read keypad input
     if (customKey1) {
-      delay(50);                                     //Debouncing
-      if (customKey1 >= '0' && customKey1 <= '9') {  // Überprüfen, ob die gedrückte Taste eine Zahl ist (zwischen 1 und 9)
-        // Wenn die Eingabe weniger als 2 Ziffern hat, füge die Zahl hinzu
-        if (input.length() < 2) {  //Wenn input < 2
-          input += customKey1;     //Dann input + 2. input (neuer customKey)
+      delay(50);                  // Debounce delay
+      if (customKey1 >= '0' && customKey1 <= '9') {  // If number key pressed
+        if (input.length() < 2) {    // Accept up to 2 digits
+          input += customKey1;       // Append digit
           Serial.print("Aktuelle Eingabe:");
-          Serial.println(input);  // Zeige die aktuelle Eingabe an
+          Serial.println(input);     // Print current input
           Lcd.clear();
           Lcd.setCursor(7, 0);
-          Lcd.print(input);
+          Lcd.print(input);          // Show input on LCD
         }
-      } else if (customKey1 == '#') {  // Wenn # gedrückt wird, geben wir die vollständige Zahl aus
-        if (input.length() == 2) {     // Nur wenn es 2 Ziffern gibt
+      } else if (customKey1 == '#') {  // Confirm input with '#'
+        if (input.length() == 2) {     // Only if 2 digits entered
           Serial.print("Eingegebene Zahl:");
-          Serial.println(input);        // Finale Eingabe
-          Lcd.createChar(0, euroChar);  // Speichert das Zeichen "€" als benutzerdefiniertes Zeichen am Speicherplatz "0"
+          Serial.println(input);        // Print final input
+          Lcd.createChar(0, euroChar);  // Load Euro sign
           Lcd.setCursor(0, 0);
           Lcd.print("Produkt ");
           Lcd.print(input);
           Lcd.setCursor(0, 1);
           Lcd.print("Preis:");
           Lcd.print("   2");
-          Lcd.write(byte(0));  //Zeigt "€ "an
+          Lcd.write(byte(0));           // Show price 2€
 
-
-          if (input.toInt() == 22)  //String zu Int umwandeln und prüfen ob = 22
+          if (input.toInt() == 22)  // If product 22 selected
           {
-
-            digitalWrite(motorP1, HIGH);  //Ausgabemotor anschalten
+            digitalWrite(motorP1, HIGH);  // Turn on motor 1 forward
             digitalWrite(motorP2, LOW);
             Serial.println("Motor gedreht");
-            progressRunning = true;       //Prozess wird damit als laufend definiert ==> keine neuen Eingaben möglich bis Abschluss
-            motorTurned = true;           //Motor wird als gedreht definiert ==> Ultraschallmessung beginnt
-            numberTyped = true;           //Nummer wurde eingegeben (wichtig für spätere Ausgabeklappenöffnung)
+            progressRunning = true;       // Mark process running
+            motorTurned = true;           // Motor turned, start measurement
+            numberTyped = true;           // Valid product number entered
             Lcd.clear();
             Lcd.setCursor(1, 0);
-            Lcd.print("22 ausgegeben");
-            delay(turnTime);
-            digitalWrite(motorP1, LOW);  //Ausgabemotor ausschalten
-            digitalWrite(motorP2, LOW);  //
+            Lcd.print("22 ausgegeben");  // "22 dispensed"
+            delay(turnTime);              // Run motor for turnTime
+            digitalWrite(motorP1, LOW);  // Stop motor
+            digitalWrite(motorP2, LOW);
 
-            delay(1000);  // Damit "22 ausgegeben" länger angezeigt wird
+            delay(1000);  // Show message longer
 
-            showDankeScreen();
+            showDankeScreen();            // Show thank you
             delay(2000);
-            ProduktEntnehmenScreen();
-
-
+            ProduktEntnehmenScreen();    // Prompt to take product
           }
-          if (input.toInt() == 58)  //String zu Int umwandeln und prüfen ob = 58
+          if (input.toInt() == 58)  // If product 58 selected
           {
-
-            digitalWrite(motorP3, LOW);  //Ausgabemotor anschalten
-            digitalWrite(motorP4, HIGH);   //
+            digitalWrite(motorP3, LOW);  // Turn on motor 2 forward
+            digitalWrite(motorP4, HIGH);
             progressRunning = true;
             motorTurned = true;
             numberTyped = true;
             Lcd.clear();
             Lcd.setCursor(1, 0);
-            Lcd.print("58 ausgegeben");
+            Lcd.print("58 ausgegeben");  // "58 dispensed"
             delay(turnTime);
-            digitalWrite(motorP3, LOW);  //Ausgabemotor ausschalten
-            digitalWrite(motorP4, LOW);  //
+            digitalWrite(motorP3, LOW);  // Stop motor
+            digitalWrite(motorP4, LOW);
 
-            delay(1000);  // Damit "58 ausgegeben" länger angezeigt wird
+            delay(1000);  // Show message longer
 
-            showDankeScreen();
+            showDankeScreen();            // Show thank you
             delay(2000);
-            ProduktEntnehmenScreen();
-
+            ProduktEntnehmenScreen();    // Prompt to take product
           }
-          if (input.toInt() != 58 && input.toInt() != 22) {  //Wenn ungültige Zahl, also wenn nicht 22 & nicht 58
+          if (input.toInt() != 58 && input.toInt() != 22) {  // If invalid product number
             Lcd.clear();
-            Lcd.createChar(1, uUmlaut);  // Speichert das Zeichen "ü" als benutzerdefiniertes Zeichen am Speicherplatz "1"
+            Lcd.createChar(1, uUmlaut);  // Load 'ü'
             Lcd.setCursor(3, 0);
             Lcd.print("Ung");
-            Lcd.write(1);  // zeigt "ü" an
+            Lcd.write(1);                // 'ü'
             Lcd.print("ltige");
             Lcd.setCursor(6, 1);
-            Lcd.print("Zahl");
+            Lcd.print("Zahl");          // "Invalid number"
             Serial.println("Ungültige Zahl, wird zurückgesetzt");
             delay(2000);
+            // Reset all flags and input
             servoOpen = false;
             numberTyped = false;
             motorTurned = false;
             progressRunning = false;
             GeldAbfrageAngezeigt = false;
-            input = "";  //Eingabe zurücksetzen
+            input = "";
             lightValue = -1;
             showWelcomeScreen();
           }
-          // Zeige die vollständige Zahl an
-          input = "";  // Zurücksetzen der Eingabe nach Ausgabe
+          input = "";  // Reset input after processing
           Serial.println("Bitte die nächste Zahl eingeben:");
         } else {
-          // Wenn die Eingabe weniger als 2 Ziffern hat, gebe keine Zahl aus
+          // Input less than 2 digits is invalid
           Serial.println("Ungültige Eingabe. Bitte 2 Ziffern eingeben.");
-          input = "";  // Eingabe zurücksetzen
+          input = "";
           lightValue = -1;
           Lcd.clear();
-          Lcd.createChar(1, uUmlaut);  // Speichert das Zeichen "ü" als benutzerdefiniertes Zeichen am Speicherplatz "1"
+          Lcd.createChar(1, uUmlaut);
           Lcd.setCursor(3, 0);
           Lcd.print("Ung");
-          Lcd.write(1);  // zeigt "ü" an
+          Lcd.write(1);
           Lcd.print("ltige");
           Lcd.setCursor(4, 1);
-          Lcd.print("Eingabe");
+          Lcd.print("Eingabe");        // "Invalid input"
           delay(1000);
           progressRunning = false;
           showWelcomeScreen();
         }
-      } else if (customKey1 == '*') {  // Wenn * gedrückt wird, Eingabe zurücksetzen
-        input = "";                    // Eingabe zurücksetzen
+      } else if (customKey1 == '*') {  // Reset input on '*'
+        input = "";
         lightValue = -1;
         GeldAbfrageAngezeigt = false;
         Serial.println("Eingabe zurückgesetzt");
         Serial.println("Bitte die nächste Zahl eingeben:");
         Lcd.clear();
-        Lcd.createChar(1, uUmlaut);  // Speichert das Zeichen "ü" als benutzerdefiniertes Zeichen am Speicherplatz "1"
+        Lcd.createChar(1, uUmlaut);
         Lcd.setCursor(4, 0);
         Lcd.print("Eingabe");
         Lcd.setCursor(1, 1);
         Lcd.print("Zur");
-        Lcd.write(1);  // zeigt "ü" an
-        Lcd.print("ckgesetzt");
+        Lcd.write(1);
+        Lcd.print("ckgesetzt");        // "Input reset"
         delay(1000);
       }
     }
   }
 
-  //-----------------------------Münze-erkannt-print-----------------------------
+  //-----------------------------Coin detected print-----------------------------
   if (interruptDone) {
-    Serial.println("Münze erkannt, interrupt hat geklappt");
+    Serial.println("Coin detected, interrupt worked");
     interruptDone = false;
   }
 
-  //----------------------------Helligkeits-Messung------------------------------
-  if (motorTurned) {                       //Wenn Motor gedreht
-    lightValue = analogRead(lightSensor);  //Lese SensorPin von Lichtsensor aus und setze = lightValue
-    Serial.println(lightValue);
+  //----------------------------Light sensor measurement------------------------------
+  if (motorTurned) {                       // If motor turned (product dispensed)
+    lightValue = analogRead(lightSensor);  // Read light sensor value
+    Serial.println(lightValue);             // Debug output
   }
 
-  //--------------------------Auswurfklappe-öffnen---------------------------------
-  if (irDetected && /*lightValue > 640 && lightValue < 670 &&*/ !servoOpen && numberTyped) {  //Prüfung ob Münze eingeworfen wurde(irDetected) + ob Lichtsensor produkt erkannt hat
-    myServo.write(90);                                                                    //und ob der Servo noch nicht geöffnet wurde und ob eine gültige Zahl eingegeben wurde(Keypad)
-    Serial.println("Servo gedreht");                                                      //Servo öffnen damit Klappe aufgeht
+  //--------------------------Open dispensing flap---------------------------------
+  if (irDetected && /*lightValue > 640 && lightValue < 670 &&*/ !servoOpen && numberTyped) {  
+    // Check coin inserted, flap closed, and product selected
+    myServo.write(90);              // Open flap
+    Serial.println("Servo moved");
 
-    irDetected = false;
-    servoOpen = true;  // Servo Status auf wurde geöffnet setzen
+    irDetected = false;             // Reset coin detected flag
+    servoOpen = true;               // Mark flap as open
 
     Lcd.clear();
     Lcd.setCursor(1, 0);
     Lcd.print("Bitte ");
     Lcd.print("Produkt");
     Lcd.setCursor(3, 1);
-    Lcd.print("entnehmen");
+    Lcd.print("entnehmen");        // "Please take product"
   }
 
-  //------------------------Auswurfkapppe-schließen--------------------------------
-  // Wenn Klappe offen und Produkt entnommen → schließen nach 5 Sekunden
-  if (servoOpen /*&& lightValue < 660*/) {  //Wenn Servo geöffnet war und die Helligkeit dann wieder über 650 geht, alles zurücksetzen für neue Durchgänge
-    delay(7000);
-    myServo.write(0);
+  //------------------------Close dispensing flap--------------------------------
+  // Close flap after product taken and delay
+  if (servoOpen /*&& lightValue < 660*/) {  
+    delay(7000);                   // Wait 7 seconds
+    myServo.write(0);             // Close flap
 
-    irDetected = false;            //Alle bool-Variablen zurücksetzen (full reset)
-    servoOpen = false;             //Servo schon geöffnet zurücksetzen
-    numberTyped = false;           //Nummer eingegeben zurücksetzen
-    motorTurned = false;           //Ausgabemotor gedreht zurücksetzen
-    progressRunning = false;       //Aktiver Prozess auf nicht aktiv setzen
+    // Reset all flags for next use
+    irDetected = false;
+    servoOpen = false;
+    numberTyped = false;
+    motorTurned = false;
+    progressRunning = false;
     GeldAbfrageAngezeigt = false;
     angezeigt = false;
-    input = "";                    //Eingabe zurücksetzen
-    lightValue = -1;               //Zurücksetzen, damit Klappe nicht versehentlich aufgeht
+    input = "";
+    lightValue = -1;
 
     Lcd.clear();
     Lcd.setCursor(4, 0);
     Lcd.print("Produkt");
     Lcd.setCursor(3, 1);
-    Lcd.print("entnommen");
+    Lcd.print("entnommen");       // "Product taken"
     delay(1500);
 
-    showWelcomeScreen();
-    Serial.println("Programm resetted");
-    Serial.println("Messung gestoppt");
+    showWelcomeScreen();           // Show welcome screen again
+    Serial.println("Program reset");
+    Serial.println("Measurement stopped");
   }
-  delay(1);  //Stabilitäts-delay / Debouncing
+  delay(1);  // Small delay for stability and debounce
 }
