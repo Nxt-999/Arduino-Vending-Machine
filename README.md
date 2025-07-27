@@ -3,7 +3,7 @@ Vending-machine v1.0 (working)
 Developed by Nxt-999
 
 
- Features
+> Features
 🛒 2 products available
 – selectable via 3x4 matrix keypad
 – confirmed with #, reset with *
@@ -28,7 +28,7 @@ Developed by Nxt-999
 – displays instructions, product numbers, prices, and confirmation messages
 – supports special characters like €, ä, ü for native messages
 
-🧠 Highlights
+> 🧠 Highlights
 Input blocking during active process (no double entry or skipping payment)
 
 All user actions reflected on the LCD in real time
@@ -37,17 +37,11 @@ Easy to expand: add more motors, sensors or new keypad logic
 
 Modular code with named display functions and full Serial debugging
 
-🔧 Hardware Used
-Arduino Mega
-
-3x4 Matrix Keypad
-
-LCD I2C 16x2 Display
-
-2x Gear Motors (controlled via digital pins)
-
-1x IR Sensor (coin detection)
-
-1x Servo Motor (flap control)
-
-[Optional] Analog light sensor (product verification)
+> 🔧 Hardware Used
+- Arduino Mega
+- 3x4 Matrix Keypad
+- LCD I2C 16x2 Display
+- 2x Gear Motors (controlled via digital pins)
+- 1x IR Sensor (coin detection)
+- 1x Servo Motor (flap control)
+- [Optional] Analog light sensor (product verification)
